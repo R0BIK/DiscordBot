@@ -27,11 +27,9 @@ client.on("ready", () => {
 
 
 client.on("messageCreate",  async (msg) => {
-    console.log(msg.content.startsWith(id));
     if (msg.author.bot || !msg.content.startsWith(id)) return;
     const args = msg.content.slice(id.length).split(/ +/);
     const cmd = args.shift().toLowerCase();
-    console.log(cmd);
     
     if (cmd === "ping") {
         msg.reply(`pong!\n${Date.now() - msg.createdTimestamp}ms`);
