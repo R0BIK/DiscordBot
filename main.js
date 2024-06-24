@@ -137,4 +137,8 @@ async function getRoleMembers(msg, members, roleID) {
     }
 } 
 
+async function getNewMembers(msg, orgMembers) {
+    
+}
+
 client.login(token)
