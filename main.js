@@ -12,6 +12,12 @@ const id = "!";
 require('dotenv').config();
 const token = process.env.DISCORD_BOT_TOKEN;
 
+const orgRoleID = "930124614712062013";
+const recruitRoleID = "1053826460646916116";
+const deplRoleID = "986610276331831316";
+const leadRoleID = "1044333811816743002";
+const vzpRoleID = "1108021062614139010";
+
 client.on("ready", () => {
     console.log(`Bot launched successfully. Bot nickname: ${client.user.tag}`)
 
@@ -31,14 +37,6 @@ client.on("messageCreate",  async (msg) => {
     const args = msg.content.slice(id.length).split(/ +/);
     const cmd = args.shift().toLowerCase();
     
-    const orgRoleID = "930124614712062013";
-    const recruitRoleID = "1053826460646916116";
-    const deplRoleID = "986610276331831316";
-    const leadRoleID = "1044333811816743002";
-    const vzpRoleID = "1108021062614139010";
-    
-    const botID = "927618848876814476";
-    
     if (cmd === "ping") {
         msg.reply(`pong!\n${Date.now() - msg.createdTimestamp}ms`);
     }
@@ -49,18 +47,19 @@ client.on("messageCreate",  async (msg) => {
         } 
         if (args.length === 0) {
             const channel = msg.channel;
-            const endDate = new Date();
+            const now = new Date();
+            const endDate = now.getDay() === 7 ? new Date() : new Date(now.setDate(now.getDate() - now.getDay()));
+            endDate.setHours(23, 59, 59);
             const startDate = new Date();
             startDate.setDate(endDate.getDate() - 5);
+            startDate.setHours(0, 0, 0);
             const messages = await fetchMessagesWithinDateRange(channel, startDate, endDate);
             const serverMembers = await getServerMembers(msg);
-            const orgMembers = await getRoleMembers(msg, serverMembers, orgRoleID);
-            const recruitMembers = await getRoleMembers(msg, serverMembers, recruitRoleID);
-            const deplMembers = await getRoleMembers(msg, serverMembers, deplRoleID);
-            const leadMembers = await getRoleMembers(msg, serverMembers, leadRoleID);
-            const vzpMembers = await getRoleMembers(msg, serverMembers, vzpRoleID);
-            msg.reply(members);
-            // console.log(members)
+            const checking = await checkMoney(messages, serverMembers, endDate);
+            // console.log(messages);
+            // console.log(checking);
+            await msg.reply(checking);
+            msg.delete();
             // console.log(endDate);
             // console.log(startDate);
             // (await messages).forEach(message => {
@@ -71,7 +70,7 @@ client.on("messageCreate",  async (msg) => {
 })
 
 async function fetchMessagesWithinDateRange(channel, startDate, endDate) {
-    let messages = new Map();
+    let messages = new Set();
     let lastID;
     
     for (let i = 0; i < 3; i++) {
@@ -88,7 +87,7 @@ async function fetchMessagesWithinDateRange(channel, startDate, endDate) {
         
         fetchedMessages.forEach(msg => {
             if (msg.createdTimestamp >= startDate.getTime() && msg.createdTimestamp <= endDate.getTime()) {
-                messages.set(msg.id, msg);
+                messages.add(msg);
             }
         })
         
@@ -105,13 +104,6 @@ async function fetchMessagesWithinDateRange(channel, startDate, endDate) {
 async function getServerMembers(msg) {
     try {
         const guild = msg.guild;
-        const role = guild.roles.cache.get(roleID);
-
-        if (!role) {
-            msg.reply("Роль не найдена");
-            return;
-        }
-
         return await guild.members.fetch();
 
     } catch (error) {
@@ -120,25 +112,133 @@ async function getServerMembers(msg) {
     }
 }
 
-async function getRoleMembers(msg, members, roleID) {
-
-    try {
-        return members.filter(member => member.roles.cache.has(roleID))
-
-        // const membersTags = membersWithRole.map(member => member.toString())
-        // const replyWithMembers = membersTags.join('\n');
-        // const membersDisplayNames = membersWithRole.map(member => member.displayName);
-        // console.log(membersDisplayNames.join('\n'))
-        // return replyWithMembers;
-
-    } catch (error) {
-        console.error('Error getting members with role:', error);
-        msg.reply('Произошла ошибка при получении участников с ролью.');
-    }
-} 
-
 async function getNewMembers(msg, orgMembers) {
-    
+    try {
+        const now = new Date();
+        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+        console.log(startOfWeek);
+    } catch (error) {
+        console.error('Error getting new members with orgMembers role:', error);
+    }
+}
+
+async function checkMoney(messages, serverMembers, endDate) {
+    let resultMessage = "";
+    let leadMsg = `\n> **Leader:**\n`;
+    let deplMsg = `\n> **Dep.Leader:**\n`;
+    let recruitMsg = `\n> **Рекруты:**\n`;
+    let vzpMsg = `\n> **ВЗП стак:**\n`;
+    let orgTrueMsg = `\n> **Закинули деньги:**\n`;
+    let orgFalseMsg = `\n> **Не закинули деньги:**\n`;
+    const checkedMembers = new Set();
+
+    let takeMoneyQuantity = 0;
+
+    messages.forEach(msg => {
+        if (msg.member.roles.cache.has(leadRoleID) && !checkedMembers.has(msg.member)) {
+            if (msg.attachments.size === 1) {
+                // leadMsg += `${msg.member} - 💸 ❎\n`;
+                leadMsg += `> ${msg.member.displayName} - 💸 ❎\n`;
+                checkedMembers.add(msg.member);
+                takeMoneyQuantity++;
+            }
+        }
+        else if (msg.member.roles.cache.has(deplRoleID) && !checkedMembers.has(msg.member)) {
+            if (msg.attachments.size === 1) {
+                // deplMsg += `${msg.member} - 💸 ❎\n`;
+                deplMsg += `> ${msg.member.displayName} - 💸 ❎\n`;
+                checkedMembers.add(msg.member);
+                takeMoneyQuantity++;
+            }
+        }
+        else if (msg.member.roles.cache.has(recruitRoleID) && !checkedMembers.has(msg.member)) {
+            if (msg.attachments.size === 1) {
+                // recruitMsg += `${msg.member} - 💸 ❎\n`;
+                recruitMsg += `> ${msg.member.displayName} - 💸 ❎\n`;
+                checkedMembers.add(msg.member);
+                takeMoneyQuantity++;
+            }
+        }
+        else if (msg.member.roles.cache.has(vzpRoleID) && !checkedMembers.has(msg.member)) {
+            if (msg.attachments.size === 1) {
+                // vzpMsg += `${msg.member} - 💸 ❎\n`;
+                vzpMsg += `> ${msg.member.displayName} - 💸 ❎\n`;
+                checkedMembers.add(msg.member);
+                takeMoneyQuantity++;
+            }
+        }
+        else if (msg.member.roles.cache.has(orgRoleID) && !checkedMembers.has(msg.member)) {
+            if (msg.attachments.size === 1) {
+                // orgTrueMsg += `${msg.member} - 💸 ❎\n`;
+                orgTrueMsg += `> ${msg.member.displayName} - 💸 ❎\n`;
+                checkedMembers.add(msg.member);
+                takeMoneyQuantity++;
+            }
+        }
+    })
+
+    serverMembers.forEach(member => {
+        if (member.roles.cache.has(leadRoleID) && !checkedMembers.has(member)) {
+            // leadMsg += `${member} - ❌\n`;
+            leadMsg += `> ${member.displayName} - ❌\n`;
+            checkedMembers.add(member);
+        }
+        else if (member.roles.cache.has(deplRoleID) && !checkedMembers.has(member)) {
+            // deplMsg += `${member} - ❌\n`;
+            deplMsg += `> ${member.displayName} - ❌\n`;
+            checkedMembers.add(member);
+        }
+        else if (member.roles.cache.has(recruitRoleID) && !checkedMembers.has(member)) {
+            // recruitMsg += `${member} - ❌\n`;
+            recruitMsg += `> ${member.displayName} - ❌\n`;
+            checkedMembers.add(member);
+        }
+        else if (member.roles.cache.has(vzpRoleID) && member.roles.cache.has(orgRoleID) && !checkedMembers.has(member)) {
+            // vzpMsg += `${member} - ❌\n`;
+            vzpMsg += `> ${member.displayName} - ❌\n`;
+            checkedMembers.add(member);
+        }
+        else if (member.roles.cache.has(orgRoleID) && !checkedMembers.has(member)) {
+            // orgFalseMsg += `${member} - ❌\n`;
+            orgFalseMsg += `> ${member.displayName} - ❌\n`;
+            checkedMembers.add(member);
+        }
+    })
+
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - 5);
+
+    const info = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n" +
+        `Проверка пополнения счета организации на **$15.000** в воскресенье **${endDate.getDate()}.${endDate.getMonth() + 1}.${endDate.getFullYear()}**.\n` +
+        `**Промежуток проверенных дат:** ${startDate.getDate()}.${startDate.getMonth() + 1}.${startDate.getFullYear()} - ${endDate.getDate()}.${endDate.getMonth() + 1}.${endDate.getFullYear()}\n` +
+        `**Пополнили счет:** ${takeMoneyQuantity}\n` +
+        "**Прошли проверку:** 0 \n" +
+        `**Просрочили оплату:** ${orgFalseMsg.split(/\n/).length - 3} \n` +
+        "\n" +
+        "**Новичков:**  \n" +
+        "**В отпуске:** \n" +
+        `**Рекрутов:** ${recruitMsg.split(/\n/).length - 3}\n` +
+        `**ВЗП стак:** ${vzpMsg.split(/\n/).length - 3}\n` +
+        `**Деп лидеров:** ${deplMsg.split(/\n/).length - 3}\n` +
+        `**Лидеров:** ${leadMsg.split(/\n/).length - 3}\n` +
+        "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n" +
+        "**Пояснение:**\n" +
+        "💸 - **Пополнил счет**\n" +
+        "✅ - **Пополнил счет и прошел проверку**\n" +
+        "❎ - **Пополнил счет и не прошел проверку**\n" +
+        "❌ - **Просрочил оплату**\n" +
+        "\n" +
+        "**Причины по который вы могли не пройти проверку:**\n" +
+        "**1)** Имя в игре не совпадает с именем в Discord\n" +
+        "**2)** Пополнили счет на другую сумму\n" +
+        "**3)** Попал курсор в скриншот\n" +
+        "**4)** Дата пополнения не входит в рамки или не правильно считана\n" +
+        "**5)** Не правильный формат изображения\n" +
+        "**6)** Программа не верно считала текст на фото"
+
+    resultMessage += orgTrueMsg + orgFalseMsg + recruitMsg + vzpMsg + deplMsg + leadMsg + info;
+
+    return resultMessage;
 }
 
 client.login(token)
