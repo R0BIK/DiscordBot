@@ -228,23 +228,23 @@ async function checkMoney(messages, serverMembers, endDate) {
 }
 
 async function getNewMembers() {
-    const newMemberChannel = "1055918910823739485";
+    const newMemberChannel = await client.channels.fetch("1055918910823739485");
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - startDate.getDay() - 6);
     startDate.setHours(0, 0, 0);
-    
+
     const messages = await fetchMessagesWithinDateRange(newMemberChannel, startDate, endDate);
     let newMembers = `\n> **Новички:**\n`;
-    
+
     messages.forEach(msg => {
-        msg.mentions.user.forEach(user => {
+        msg.mentions.users.forEach(user => {
             if (User !== msg.author) {
-                newMembers += `${user} вступил ${msg.date}`
+                newMembers += `${user} вступил ${msg.createdAt}`
             }
         })
     })
-    
+
     console.log(newMembers);
 }
 
