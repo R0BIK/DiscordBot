@@ -1,4 +1,4 @@
-﻿const { Client, GatewayIntentBits, OAuth2Scopes, PermissionFlagsBits } = require('discord.js');
+﻿const { Client, GatewayIntentBits, OAuth2Scopes, PermissionFlagsBits, User} = require('discord.js');
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -37,28 +37,24 @@ client.on("messageCreate",  async (msg) => {
     const args = msg.content.slice(id.length).split(/ +/);
     const cmd = args.shift().toLowerCase();
     
-    if (cmd === "ping") {
-        msg.reply(`pong!\n${Date.now() - msg.createdTimestamp}ms`);
-    }
-    
-    else if (cmd === "check") {
+    if (cmd === "check") {
         if (args.length === 1) {
             return;
         } 
         if (args.length === 0) {
-            const channel = msg.channel;
             const now = new Date();
             const endDate = now.getDay() === 7 ? new Date() : new Date(now.setDate(now.getDate() - now.getDay()));
             endDate.setHours(23, 59, 59);
             const startDate = new Date();
             startDate.setDate(endDate.getDate() - 5);
             startDate.setHours(0, 0, 0);
-            const messages = await fetchMessagesWithinDateRange(channel, startDate, endDate);
+            const messages = await fetchMessagesWithinDateRange(msg.channel, startDate, endDate);
             const serverMembers = await getServerMembers(msg);
             const checking = await checkMoney(messages, serverMembers, endDate);
+            getNewMembers();
             // console.log(messages);
             // console.log(checking);
-            await msg.reply(checking);
+            // await msg.reply(checking);
             msg.delete();
             // console.log(endDate);
             // console.log(startDate);
@@ -79,7 +75,7 @@ async function fetchMessagesWithinDateRange(channel, startDate, endDate) {
             options.before = lastID;
         }
         
-        const fetchedMessages = await channel.messages.fetch(options);
+        const fetchedMessages = await channel.messages.fetch (options);
         
         if (fetchedMessages.size === 0) {
             break;
@@ -109,16 +105,6 @@ async function getServerMembers(msg) {
     } catch (error) {
         console.error('Error getting server members:', error);
         msg.reply('Произошла ошибка при получении участников сервера.');
-    }
-}
-
-async function getNewMembers(msg, orgMembers) {
-    try {
-        const now = new Date();
-        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-        console.log(startOfWeek);
-    } catch (error) {
-        console.error('Error getting new members with orgMembers role:', error);
     }
 }
 
@@ -239,6 +225,27 @@ async function checkMoney(messages, serverMembers, endDate) {
     resultMessage += orgTrueMsg + orgFalseMsg + recruitMsg + vzpMsg + deplMsg + leadMsg + info;
 
     return resultMessage;
+}
+
+async function getNewMembers() {
+    const newMemberChannel = "1055918910823739485";
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - startDate.getDay() - 6);
+    startDate.setHours(0, 0, 0);
+    
+    const messages = await fetchMessagesWithinDateRange(newMemberChannel, startDate, endDate);
+    let newMembers = `\n> **Новички:**\n`;
+    
+    messages.forEach(msg => {
+        msg.mentions.user.forEach(user => {
+            if (User !== msg.author) {
+                newMembers += `${user} вступил ${msg.date}`
+            }
+        })
+    })
+    
+    console.log(newMembers);
 }
 
 client.login(token)
