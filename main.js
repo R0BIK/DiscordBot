@@ -145,7 +145,6 @@ async function getVacationMembers(checkedMembers) {
 async function fetchMessagesOfVacation() {
     const vacationChannel = await client.channels.fetch("1008883609983275078");
     let lastID;
-    let message;
 
     for (let i = 0; i < 3; i++) {
         const options = { limit: 10 };
@@ -202,8 +201,6 @@ async function distributeRoles(messages, serverMembers, startDate, endDate, user
     let recruitMsg = `\n> **Рекруты:**\n`;
     let orgTrueMsg = `\n> **Закинули деньги:**\n`;
     let orgFalseMsg = `\n> **Не закинули деньги:**\n`;
-    const newMembers = await getNewMembers(checkedMembers);
-    const vacationMembers = await getVacationMembers(checkedMembers);
 
     messages.forEach(msg => {
         if (isMemberWithRoleAndNotChecked(msg, checkedMembers, leadRoleID)) {
@@ -216,6 +213,9 @@ async function distributeRoles(messages, serverMembers, startDate, endDate, user
             orgTrueMsg = checkPayment(msg, checkedMembers, orgTrueMsg);
         }
     });
+
+    const newMembers = await getNewMembers(checkedMembers);
+    const vacationMembers = await getVacationMembers(checkedMembers);
 
     serverMembers.forEach(member => {
         if (isRoleAndPaymentChecked(member, checkedMembers, leadRoleID)) {
@@ -249,7 +249,7 @@ async function distributeRoles(messages, serverMembers, startDate, endDate, user
         `**Просрочили оплату:** ${orgFalseMsg.split(/\n/).length - 3} \n` +
         "\n" +
         `**Новичков:** ${newMembers.split(/\n/).length - 3}\n` +
-        "**В отпуске:** \n" +
+        `**В отпуске:** ${vacationMembers.split(/\n/).length - 3}\n` +
         `**Рекрутов:** ${recruitMsg.split(/\n/).length - 3}\n` +
         `**Деп лидеров:** ${deplMsg.split(/\n/).length - 3}\n` +
         `**Лидеров:** ${leadMsg.split(/\n/).length - 3}\n` +
