@@ -112,16 +112,6 @@ async function getServerMembers(msg) {
     }
 }
 
-async function getNewMembers(msg, orgMembers) {
-    try {
-        const now = new Date();
-        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-        console.log(startOfWeek);
-    } catch (error) {
-        console.error('Error getting new members with orgMembers role:', error);
-    }
-}
-
 async function checkMoney(messages, serverMembers, endDate) {
     let resultMessage = "";
     let leadMsg = `\n> **Leader:**\n`;
