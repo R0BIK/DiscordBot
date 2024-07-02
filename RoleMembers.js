@@ -1,0 +1,4 @@
+class RoleMembers {
+    let message
+
+}

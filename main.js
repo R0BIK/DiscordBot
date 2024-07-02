@@ -105,7 +105,7 @@ async function getServerMembers(msg) {
     }
 }
 
-async function getNewMembers(checkedMembers) {
+async function getnewMembersStr(checkedMembers) {
     const newMemberChannel = await client.channels.fetch("1055918910823739485");
     const endDate = new Date();
     const startDate = new Date();
@@ -113,33 +113,33 @@ async function getNewMembers(checkedMembers) {
     startDate.setHours(0, 0, 0);
 
     const messages = await fetchMessagesWithinDateRange(newMemberChannel, startDate, endDate);
-    let newMembers = `\n> **Новички (${startDate.getDate()}.${startDate.getMonth() + 1}.${startDate.getFullYear()} - ${endDate.getDate()}.${endDate.getMonth() + 1}.${endDate.getFullYear()}):**\n`;
+    let newMembersStr = `\n> **Новички (${startDate.getDate()}.${startDate.getMonth() + 1}.${startDate.getFullYear()} - ${endDate.getDate()}.${endDate.getMonth() + 1}.${endDate.getFullYear()}):**\n`;
 
     messages.forEach(msg => {
         msg.mentions.members.forEach(member => {
             if (member !== msg.member && member.roles.cache.has(orgRoleID)) {
                 checkedMembers.add(member);
-                newMembers += `> ${member.displayName} вступил ${msg.createdAt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}\n`
+                newMembersStr += `> ${member.displayName} вступил ${msg.createdAt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}\n`
             }
         })
     })
 
-    return newMembers;
+    return newMembersStr;
 }
 
-async function getVacationMembers(checkedMembers) {
+async function getVacationMembersStr(checkedMembers) {
     const vacationMessage = await fetchMessagesOfVacation();
     
-    let vacationMembers = `\n> **Отпуск:**\n`;
+    let vacationMembersStr = `\n> **Отпуск:**\n`;
 
     vacationMessage.mentions.members.forEach(member => {
         if (member.roles.cache.has(orgRoleID)) {
             checkedMembers.add(member);
-            vacationMembers += `> ${member.displayName}\n`
+            vacationMembersStr += `> ${member.displayName}\n`
         }
     })
     
-    return vacationMembers;
+    return vacationMembersStr;
 }
 
 async function fetchMessagesOfVacation() {
@@ -196,47 +196,47 @@ async function distributeRoles(messages, serverMembers, startDate, endDate, user
     let resultMessage = "";
     const checkedMembers = new Set();
     
-    let leadMsg = `\n> **Leader:**\n`;
-    let deplMsg = `\n> **Dep.Leader:**\n`;
-    let recruitMsg = `\n> **Рекруты:**\n`;
-    let orgTrueMsg = `\n> **Закинули деньги:**\n`;
-    let orgFalseMsg = `\n> **Не закинули деньги:**\n`;
+    let leadMembersStr = `\n> **Leader:**\n`;
+    let deplMembersStr = `\n> **Dep.Leader:**\n`;
+    let recruitMembersStr = `\n> **Рекруты:**\n`;
+    let orgPayMembersStr = `\n> **Закинули деньги:**\n`;
+    let orgMembersStr = `\n> **Не закинули деньги:**\n`;
 
     messages.forEach(msg => {
         if (isMemberWithRoleAndNotChecked(msg, checkedMembers, leadRoleID)) {
-            leadMsg = checkPayment(msg, checkedMembers, leadMsg);
+            leadMembersStr = checkPayment(msg, checkedMembers, leadMembersStr);
         } else if (isMemberWithRoleAndNotChecked(msg, checkedMembers, deplRoleID)) {
-            deplMsg = checkPayment(msg, checkedMembers, deplMsg);
+            deplMembersStr = checkPayment(msg, checkedMembers, deplMembersStr);
         } else if (isMemberWithRoleAndNotChecked(msg, checkedMembers, recruitRoleID)) {
-            recruitMsg = checkPayment(msg, checkedMembers, recruitMsg);
+            recruitMembersStr = checkPayment(msg, checkedMembers, recruitMembersStr);
         } else if (isMemberWithRoleAndNotChecked(msg, checkedMembers, orgRoleID)) {
-            orgTrueMsg = checkPayment(msg, checkedMembers, orgTrueMsg);
+            orgPayMembersStr = checkPayment(msg, checkedMembers, orgPayMembersStr);
         }
     });
 
-    const newMembers = await getNewMembers(checkedMembers);
-    const vacationMembers = await getVacationMembers(checkedMembers);
+    const newMembersStr = await getnewMembersStr(checkedMembers);
+    const vacationMembersStr = await getVacationMembersStr(checkedMembers);
 
     serverMembers.forEach(member => {
         if (isRoleAndPaymentChecked(member, checkedMembers, leadRoleID)) {
-            leadMsg += `> ${member.displayName} - ❌\n`;
+            leadMembersStr += `> ${member.displayName} - ❌\n`;
             checkedMembers.add(member);
         }
         else if (isRoleAndPaymentChecked(member, checkedMembers, deplRoleID)) {
-            deplMsg += `> ${member.displayName} - ❌\n`;
+            deplMembersStr += `> ${member.displayName} - ❌\n`;
             checkedMembers.add(member);
         }
         else if (isRoleAndPaymentChecked(member, checkedMembers, recruitRoleID)) {
-            recruitMsg += `> ${member.displayName} - ❌\n`;
+            recruitMembersStr += `> ${member.displayName} - ❌\n`;
             checkedMembers.add(member);
         }
         else if (isRoleAndPaymentChecked(member, checkedMembers, orgRoleID)) {
-            orgFalseMsg += `> ${member.displayName} - ❌\n`;
+            orgMembersStr += `> ${member.displayName} - ❌\n`;
             checkedMembers.add(member);
         }
     })
 
-    resultMessage += orgTrueMsg + orgFalseMsg + newMembers + vacationMembers + recruitMsg + deplMsg + leadMsg;
+    resultMessage += orgPayMembersStr + orgMembersStr + newMembersStr + vacationMembersStr + recruitMembersStr + deplMembersStr + leadMembersStr;
 
     const sundayDate = new Date(new Date().setDate(startDate.getDate() + 5));
 
@@ -246,13 +246,13 @@ async function distributeRoles(messages, serverMembers, startDate, endDate, user
         `**Пополнили счет:** \n` +
         `**Прибыль в организацию:** \n` +
         "**Прошли проверку:** 0 \n" +
-        `**Просрочили оплату:** ${orgFalseMsg.split(/\n/).length - 3} \n` +
+        `**Просрочили оплату:** ${orgMembersStr.split(/\n/).length - 3} \n` +
         "\n" +
-        `**Новичков:** ${newMembers.split(/\n/).length - 3}\n` +
-        `**В отпуске:** ${vacationMembers.split(/\n/).length - 3}\n` +
-        `**Рекрутов:** ${recruitMsg.split(/\n/).length - 3}\n` +
-        `**Деп лидеров:** ${deplMsg.split(/\n/).length - 3}\n` +
-        `**Лидеров:** ${leadMsg.split(/\n/).length - 3}\n` +
+        `**Новичков:** ${newMembersStr.split(/\n/).length - 3}\n` +
+        `**В отпуске:** ${vacationMembersStr.split(/\n/).length - 3}\n` +
+        `**Рекрутов:** ${recruitMembersStr.split(/\n/).length - 3}\n` +
+        `**Деп лидеров:** ${deplMembersStr.split(/\n/).length - 3}\n` +
+        `**Лидеров:** ${leadMembersStr.split(/\n/).length - 3}\n` +
         "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n" +
         "**Пояснение:**\n" +
         "💸 - **Пополнил счет**\n" +
