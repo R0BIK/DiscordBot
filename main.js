@@ -1,4 +1,5 @@
-﻿const { Client, GatewayIntentBits, OAuth2Scopes, PermissionFlagsBits } = require('discord.js');
+﻿require('dotenv').config();
+const { Client, GatewayIntentBits, OAuth2Scopes, PermissionFlagsBits, User} = require('discord.js');
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -9,14 +10,10 @@ const client = new Client({
 });
 
 const id = "!";
-require('dotenv').config();
-const token = process.env.DISCORD_BOT_TOKEN;
-
 const orgRoleID = "930124614712062013";
 const recruitRoleID = "1053826460646916116";
 const deplRoleID = "986610276331831316";
 const leadRoleID = "1044333811816743002";
-const vzpRoleID = "1108021062614139010";
 
 client.on("ready", () => {
     console.log(`Bot launched successfully. Bot nickname: ${client.user.tag}`)
@@ -30,41 +27,26 @@ client.on("ready", () => {
     console.log(`Generated bot invite link: ${link}`);
 })
 
-
-
 client.on("messageCreate",  async (msg) => {
     if (msg.author.bot || !msg.content.startsWith(id)) return;
     const args = msg.content.slice(id.length).split(/ +/);
     const cmd = args.shift().toLowerCase();
     
-    if (cmd === "ping") {
-        msg.reply(`pong!\n${Date.now() - msg.createdTimestamp}ms`);
-    }
-    
-    else if (cmd === "check") {
+    if (cmd === "check") {
         if (args.length === 1) {
             return;
         } 
         if (args.length === 0) {
-            const channel = msg.channel;
             const now = new Date();
             const endDate = now.getDay() === 7 ? new Date() : new Date(now.setDate(now.getDate() - now.getDay()));
             endDate.setHours(23, 59, 59);
             const startDate = new Date();
             startDate.setDate(endDate.getDate() - 5);
             startDate.setHours(0, 0, 0);
+            const channel = msg.channel;
             const messages = await fetchMessagesWithinDateRange(channel, startDate, endDate);
             const serverMembers = await getServerMembers(msg);
-            const checking = await checkMoney(messages, serverMembers, endDate);
-            // console.log(messages);
-            // console.log(checking);
-            await msg.reply(checking);
-            msg.delete();
-            // console.log(endDate);
-            // console.log(startDate);
-            // (await messages).forEach(message => {
-            //     console.log(message.content);
-            // })
+            const checking = await distributeRoles(messages, serverMembers, endDate, msg);
         }
     }
 })
@@ -89,7 +71,7 @@ async function fetchMessagesWithinDateRange(channel, startDate, endDate) {
             if (msg.createdTimestamp >= startDate.getTime() && msg.createdTimestamp <= endDate.getTime()) {
                 messages.add(msg);
             }
-        })
+        });
         
         lastID = fetchedMessages.last().id;
 
@@ -112,88 +94,89 @@ async function getServerMembers(msg) {
     }
 }
 
-async function checkMoney(messages, serverMembers, endDate) {
+async function getNewMembers() {
+    const newMemberChannel = await client.channels.fetch("1055918910823739485");
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - startDate.getDay() - 6);
+    startDate.setHours(0, 0, 0);
+
+    const messages = await fetchMessagesWithinDateRange(newMemberChannel, startDate, endDate);
+    let newMembers = `\n> **Новички (${startDate.getDate()}.${startDate.getMonth() + 1}.${startDate.getFullYear()} - ${endDate.getDate()}.${endDate.getMonth() + 1}.${endDate.getFullYear()}):**\n`;
+
+    messages.forEach(msg => {
+        msg.mentions.members.forEach(member => {
+            if (member !== msg.member && member.roles.cache.has(orgRoleID)) {
+                newMembers += `> ${member.displayName} вступил ${msg.createdAt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}\n`
+            }
+        })
+    })
+
+    return newMembers;
+}
+
+function isMemberWithRoleAndNotChecked(msg, checkedMembers, role) {
+    return (msg.member.roles.cache.has(role) && !checkedMembers.has(msg.member));
+}
+
+function isRoleAndPaymentChecked(member, checkedMembers, role) {
+    return !!(member.roles.cache.has(role) && !checkedMembers.has(member));   
+    
+}
+
+function checkPayment(msg, checkedMembers, replyMsg) {
+    if (msg.attachments.size === 1) {
+        // replyMsg += `${msg.member} - 💸 ❎\n`;
+        replyMsg += `> ${msg.member.displayName} - 💸 ❎\n`;
+        checkedMembers.add(msg.member);
+        // takeMoneyQuantity++;
+    }
+    return replyMsg;
+}
+
+async function distributeRoles(messages, serverMembers, endDate, userMessage) {
     let resultMessage = "";
     let leadMsg = `\n> **Leader:**\n`;
     let deplMsg = `\n> **Dep.Leader:**\n`;
     let recruitMsg = `\n> **Рекруты:**\n`;
-    let vzpMsg = `\n> **ВЗП стак:**\n`;
     let orgTrueMsg = `\n> **Закинули деньги:**\n`;
     let orgFalseMsg = `\n> **Не закинули деньги:**\n`;
+    const newMembers = await getNewMembers();
+
     const checkedMembers = new Set();
 
-    let takeMoneyQuantity = 0;
-
     messages.forEach(msg => {
-        if (msg.member.roles.cache.has(leadRoleID) && !checkedMembers.has(msg.member)) {
-            if (msg.attachments.size === 1) {
-                // leadMsg += `${msg.member} - 💸 ❎\n`;
-                leadMsg += `> ${msg.member.displayName} - 💸 ❎\n`;
-                checkedMembers.add(msg.member);
-                takeMoneyQuantity++;
-            }
+        if (isMemberWithRoleAndNotChecked(msg, checkedMembers, leadRoleID)) {
+            leadMsg = checkPayment(msg, checkedMembers, leadMsg);
+        } else if (isMemberWithRoleAndNotChecked(msg, checkedMembers, deplRoleID)) {
+            deplMsg = checkPayment(msg, checkedMembers, deplMsg);
+        } else if (isMemberWithRoleAndNotChecked(msg, checkedMembers, recruitRoleID)) {
+            recruitMsg = checkPayment(msg, checkedMembers, recruitMsg);
+        } else if (isMemberWithRoleAndNotChecked(msg, checkedMembers, orgRoleID)) {
+            orgTrueMsg = checkPayment(msg, checkedMembers, orgTrueMsg);
         }
-        else if (msg.member.roles.cache.has(deplRoleID) && !checkedMembers.has(msg.member)) {
-            if (msg.attachments.size === 1) {
-                // deplMsg += `${msg.member} - 💸 ❎\n`;
-                deplMsg += `> ${msg.member.displayName} - 💸 ❎\n`;
-                checkedMembers.add(msg.member);
-                takeMoneyQuantity++;
-            }
-        }
-        else if (msg.member.roles.cache.has(recruitRoleID) && !checkedMembers.has(msg.member)) {
-            if (msg.attachments.size === 1) {
-                // recruitMsg += `${msg.member} - 💸 ❎\n`;
-                recruitMsg += `> ${msg.member.displayName} - 💸 ❎\n`;
-                checkedMembers.add(msg.member);
-                takeMoneyQuantity++;
-            }
-        }
-        else if (msg.member.roles.cache.has(vzpRoleID) && !checkedMembers.has(msg.member)) {
-            if (msg.attachments.size === 1) {
-                // vzpMsg += `${msg.member} - 💸 ❎\n`;
-                vzpMsg += `> ${msg.member.displayName} - 💸 ❎\n`;
-                checkedMembers.add(msg.member);
-                takeMoneyQuantity++;
-            }
-        }
-        else if (msg.member.roles.cache.has(orgRoleID) && !checkedMembers.has(msg.member)) {
-            if (msg.attachments.size === 1) {
-                // orgTrueMsg += `${msg.member} - 💸 ❎\n`;
-                orgTrueMsg += `> ${msg.member.displayName} - 💸 ❎\n`;
-                checkedMembers.add(msg.member);
-                takeMoneyQuantity++;
-            }
-        }
-    })
+    });
 
     serverMembers.forEach(member => {
-        if (member.roles.cache.has(leadRoleID) && !checkedMembers.has(member)) {
-            // leadMsg += `${member} - ❌\n`;
+        if (isRoleAndPaymentChecked(member, checkedMembers, leadRoleID)) {
             leadMsg += `> ${member.displayName} - ❌\n`;
             checkedMembers.add(member);
         }
-        else if (member.roles.cache.has(deplRoleID) && !checkedMembers.has(member)) {
-            // deplMsg += `${member} - ❌\n`;
+        else if (isRoleAndPaymentChecked(member, checkedMembers, deplRoleID)) {
             deplMsg += `> ${member.displayName} - ❌\n`;
             checkedMembers.add(member);
         }
-        else if (member.roles.cache.has(recruitRoleID) && !checkedMembers.has(member)) {
-            // recruitMsg += `${member} - ❌\n`;
+        else if (isRoleAndPaymentChecked(member, checkedMembers, recruitRoleID)) {
             recruitMsg += `> ${member.displayName} - ❌\n`;
             checkedMembers.add(member);
         }
-        else if (member.roles.cache.has(vzpRoleID) && member.roles.cache.has(orgRoleID) && !checkedMembers.has(member)) {
-            // vzpMsg += `${member} - ❌\n`;
-            vzpMsg += `> ${member.displayName} - ❌\n`;
-            checkedMembers.add(member);
-        }
-        else if (member.roles.cache.has(orgRoleID) && !checkedMembers.has(member)) {
-            // orgFalseMsg += `${member} - ❌\n`;
+        else if (isRoleAndPaymentChecked(member, checkedMembers, orgRoleID)) {
             orgFalseMsg += `> ${member.displayName} - ❌\n`;
             checkedMembers.add(member);
         }
     })
+
+    resultMessage += orgTrueMsg + orgFalseMsg + newMembers + recruitMsg + deplMsg + leadMsg;
 
     const startDate = new Date();
     startDate.setDate(endDate.getDate() - 5);
@@ -201,14 +184,14 @@ async function checkMoney(messages, serverMembers, endDate) {
     const info = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n" +
         `Проверка пополнения счета организации на **$15.000** в воскресенье **${endDate.getDate()}.${endDate.getMonth() + 1}.${endDate.getFullYear()}**.\n` +
         `**Промежуток проверенных дат:** ${startDate.getDate()}.${startDate.getMonth() + 1}.${startDate.getFullYear()} - ${endDate.getDate()}.${endDate.getMonth() + 1}.${endDate.getFullYear()}\n` +
-        `**Пополнили счет:** ${takeMoneyQuantity}\n` +
+        `**Пополнили счет:** \n` +
+        `**Прибыль в организацию:** \n` +
         "**Прошли проверку:** 0 \n" +
         `**Просрочили оплату:** ${orgFalseMsg.split(/\n/).length - 3} \n` +
         "\n" +
-        "**Новичков:**  \n" +
+        `**Новичков:** ${newMembers.split(/\n/).length - 3}\n` +
         "**В отпуске:** \n" +
         `**Рекрутов:** ${recruitMsg.split(/\n/).length - 3}\n` +
-        `**ВЗП стак:** ${vzpMsg.split(/\n/).length - 3}\n` +
         `**Деп лидеров:** ${deplMsg.split(/\n/).length - 3}\n` +
         `**Лидеров:** ${leadMsg.split(/\n/).length - 3}\n` +
         "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n" +
@@ -225,10 +208,11 @@ async function checkMoney(messages, serverMembers, endDate) {
         "**4)** Дата пополнения не входит в рамки или не правильно считана\n" +
         "**5)** Не правильный формат изображения\n" +
         "**6)** Программа не верно считала текст на фото"
-
-    resultMessage += orgTrueMsg + orgFalseMsg + recruitMsg + vzpMsg + deplMsg + leadMsg + info;
-
-    return resultMessage;
+    
+    console.log(resultMessage);
+    await userMessage.reply(resultMessage);
+    await userMessage.channel.send(info);
+    userMessage.delete();
 }
 
-client.login(token)
+client.login(process.env.DISCORD_BOT_TOKEN)
