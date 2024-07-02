@@ -37,16 +37,27 @@ client.on("messageCreate",  async (msg) => {
             return;
         } 
         if (args.length === 0) {
-            const now = new Date();
-            const endDate = now.getDay() === 7 ? new Date() : new Date(now.setDate(now.getDate() - now.getDay()));
-            endDate.setHours(23, 59, 59);
+            const monday = 1;
+            const sunday = 7;
+            const endDate = new Date();
+            if (endDate.getDay() !== sunday && endDate.getDay() !== monday) {
+                endDate.setDate(endDate.getDate() - endDate.getDay() + 1);
+                endDate.setHours(23, 59, 59);
+            }
             const startDate = new Date();
-            startDate.setDate(endDate.getDate() - 5);
-            startDate.setHours(0, 0, 0);
+            if (endDate.getDay() === sunday) {
+                startDate.setDate(endDate.getDate() - 5);
+                startDate.setHours(0, 0, 0);
+            }
+            else if (endDate.getDay() === monday) {
+                startDate.setDate(endDate.getDate() - 6);
+                startDate.setHours(0, 0, 0);
+            }
+            
             const channel = msg.channel;
             const messages = await fetchMessagesWithinDateRange(channel, startDate, endDate);
             const serverMembers = await getServerMembers(msg);
-            const checking = await distributeRoles(messages, serverMembers, endDate, msg);
+            const checking = await distributeRoles(messages, serverMembers, startDate, endDate, msg);
         }
     }
 })
@@ -94,7 +105,7 @@ async function getServerMembers(msg) {
     }
 }
 
-async function getNewMembers() {
+async function getNewMembers(checkedMembers) {
     const newMemberChannel = await client.channels.fetch("1055918910823739485");
     const endDate = new Date();
     const startDate = new Date();
@@ -107,12 +118,60 @@ async function getNewMembers() {
     messages.forEach(msg => {
         msg.mentions.members.forEach(member => {
             if (member !== msg.member && member.roles.cache.has(orgRoleID)) {
+                checkedMembers.add(member);
                 newMembers += `> ${member.displayName} вступил ${msg.createdAt.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}\n`
             }
         })
     })
 
     return newMembers;
+}
+
+async function getVacationMembers(checkedMembers) {
+    const vacationMessage = await fetchMessagesOfVacation();
+    
+    let vacationMembers = `\n> **Отпуск:**\n`;
+
+    vacationMessage.mentions.members.forEach(member => {
+        if (member.roles.cache.has(orgRoleID)) {
+            checkedMembers.add(member);
+            vacationMembers += `> ${member.displayName}\n`
+        }
+    })
+    
+    return vacationMembers;
+}
+
+async function fetchMessagesOfVacation() {
+    const vacationChannel = await client.channels.fetch("1008883609983275078");
+    let lastID;
+
+    for (let i = 0; i < 3; i++) {
+        const options = { limit: 10 };
+        if (lastID) {
+            options.before = lastID;
+        }
+
+        const fetchedMessages = await vacationChannel.messages.fetch(options);
+
+        if (fetchedMessages.size === 0) {
+            break;
+        }
+
+        for (const msg of fetchedMessages.values()) {
+            if (msg.content.includes("🌴 ОТПУСК 🌴")) {
+                return msg;
+            }
+        }
+
+        lastID = fetchedMessages.last().id;
+
+        if (fetchedMessages.size < 10) {
+            break;
+        }
+    }
+    
+    return null;
 }
 
 function isMemberWithRoleAndNotChecked(msg, checkedMembers, role) {
@@ -126,7 +185,6 @@ function isRoleAndPaymentChecked(member, checkedMembers, role) {
 
 function checkPayment(msg, checkedMembers, replyMsg) {
     if (msg.attachments.size === 1) {
-        // replyMsg += `${msg.member} - 💸 ❎\n`;
         replyMsg += `> ${msg.member.displayName} - 💸 ❎\n`;
         checkedMembers.add(msg.member);
         // takeMoneyQuantity++;
@@ -134,16 +192,15 @@ function checkPayment(msg, checkedMembers, replyMsg) {
     return replyMsg;
 }
 
-async function distributeRoles(messages, serverMembers, endDate, userMessage) {
+async function distributeRoles(messages, serverMembers, startDate, endDate, userMessage) {
     let resultMessage = "";
+    const checkedMembers = new Set();
+    
     let leadMsg = `\n> **Leader:**\n`;
     let deplMsg = `\n> **Dep.Leader:**\n`;
     let recruitMsg = `\n> **Рекруты:**\n`;
     let orgTrueMsg = `\n> **Закинули деньги:**\n`;
     let orgFalseMsg = `\n> **Не закинули деньги:**\n`;
-    const newMembers = await getNewMembers();
-
-    const checkedMembers = new Set();
 
     messages.forEach(msg => {
         if (isMemberWithRoleAndNotChecked(msg, checkedMembers, leadRoleID)) {
@@ -156,6 +213,9 @@ async function distributeRoles(messages, serverMembers, endDate, userMessage) {
             orgTrueMsg = checkPayment(msg, checkedMembers, orgTrueMsg);
         }
     });
+
+    const newMembers = await getNewMembers(checkedMembers);
+    const vacationMembers = await getVacationMembers(checkedMembers);
 
     serverMembers.forEach(member => {
         if (isRoleAndPaymentChecked(member, checkedMembers, leadRoleID)) {
@@ -176,13 +236,12 @@ async function distributeRoles(messages, serverMembers, endDate, userMessage) {
         }
     })
 
-    resultMessage += orgTrueMsg + orgFalseMsg + newMembers + recruitMsg + deplMsg + leadMsg;
+    resultMessage += orgTrueMsg + orgFalseMsg + newMembers + vacationMembers + recruitMsg + deplMsg + leadMsg;
 
-    const startDate = new Date();
-    startDate.setDate(endDate.getDate() - 5);
+    const sundayDate = new Date(new Date().setDate(startDate.getDate() + 5));
 
     const info = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n" +
-        `Проверка пополнения счета организации на **$15.000** в воскресенье **${endDate.getDate()}.${endDate.getMonth() + 1}.${endDate.getFullYear()}**.\n` +
+        `Проверка пополнения счета организации на **$15.000** в воскресенье **${sundayDate.getDate()}.${sundayDate.getMonth() + 1}.${sundayDate.getFullYear()}**.\n` +
         `**Промежуток проверенных дат:** ${startDate.getDate()}.${startDate.getMonth() + 1}.${startDate.getFullYear()} - ${endDate.getDate()}.${endDate.getMonth() + 1}.${endDate.getFullYear()}\n` +
         `**Пополнили счет:** \n` +
         `**Прибыль в организацию:** \n` +
@@ -190,7 +249,7 @@ async function distributeRoles(messages, serverMembers, endDate, userMessage) {
         `**Просрочили оплату:** ${orgFalseMsg.split(/\n/).length - 3} \n` +
         "\n" +
         `**Новичков:** ${newMembers.split(/\n/).length - 3}\n` +
-        "**В отпуске:** \n" +
+        `**В отпуске:** ${vacationMembers.split(/\n/).length - 3}\n` +
         `**Рекрутов:** ${recruitMsg.split(/\n/).length - 3}\n` +
         `**Деп лидеров:** ${deplMsg.split(/\n/).length - 3}\n` +
         `**Лидеров:** ${leadMsg.split(/\n/).length - 3}\n` +
@@ -209,8 +268,8 @@ async function distributeRoles(messages, serverMembers, endDate, userMessage) {
         "**5)** Не правильный формат изображения\n" +
         "**6)** Программа не верно считала текст на фото"
     
-    console.log(resultMessage);
-    await userMessage.reply(resultMessage);
+    // console.log(resultMessage);
+    await userMessage.channel.send(resultMessage);
     await userMessage.channel.send(info);
     userMessage.delete();
 }
